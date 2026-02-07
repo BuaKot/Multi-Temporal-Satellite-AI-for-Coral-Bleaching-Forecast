@@ -13,7 +13,7 @@ try:
     # 2. Parameters
     # ==========================================
     # MMM (Maximum Monthly Mean) for Koh Man Nai
-    MMM = 29.5 
+    MMM = 29.5 # degrees Celsius
     
     # ==========================================
     # 3. Calculate DHW

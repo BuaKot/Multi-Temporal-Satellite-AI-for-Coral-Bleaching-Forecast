@@ -1,16 +1,14 @@
 import pandas as pd
 import numpy as np
 import matplotlib
-matplotlib.use('Agg') # Safe mode
+matplotlib.use('Agg') # Use 'Agg' backend for non-GUI environments
 import matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression # Import Linear Regression model
 import datetime as dt
 
 print("[INFO] Starting Prediction Process (2023-2027)...")
 
-# ==========================================
-# PART 1: สร้างข้อมูลจำลองชุดเดิม (2023-2025)
-# ==========================================
+# Data Generation Function from 2023 to 2025
 def generate_history_data():
     data_frames = []
     for year in [2023, 2024, 2025]:
@@ -32,35 +30,31 @@ def generate_history_data():
 
 df_history = generate_history_data()
 
-# ==========================================
-# PART 2: สร้างโมเดลและพยากรณ์ (Train & Predict)
-# ==========================================
+# Model Trainning 2023-2025
 print("[INFO] Training Model on 2023-2025 data...")
 
-# เตรียมข้อมูลฝึก (Train)
-df_history['Date_Ordinal'] = df_history['Date'].map(dt.datetime.toordinal)
-X_train = df_history['Date_Ordinal'].values.reshape(-1, 1)
-y_train = df_history['SST_Celsius'].values
+#train data
+df_history['Date_Ordinal'] = df_history['Date'].map(dt.datetime.toordinal) # Convert date to ordinal for regression
+X_train = df_history['Date_Ordinal'].values.reshape(-1, 1) #Date as feature
+y_train = df_history['SST_Celsius'].values #SST
 
-# สร้างโมเดล Linear Regression
+# Create and train model
 model = LinearRegression()
 model.fit(X_train, y_train)
 
-# --- พยากรณ์อนาคต 2 ปี (2026-2027) ---
+#Predict future data
 print("[INFO] Forecasting for 2026-2027...")
 future_dates = pd.date_range(start='2026-01-01', end='2027-12-31')
 future_dates_ordinal = future_dates.map(dt.datetime.toordinal).values.reshape(-1, 1)
 
-# ให้โมเดลทำนายอนาคต
+# Model Prediction
 future_pred = model.predict(future_dates_ordinal)
 
-# รวมข้อมูลทำนายเพื่อวาดกราฟเส้นเดียว
+# Cobine Historical and Future Data for Plotting
 all_dates = pd.concat([df_history['Date'], pd.Series(future_dates)])
 all_preds = model.predict(all_dates.map(dt.datetime.toordinal).values.reshape(-1, 1))
 
-# ==========================================
-# PART 3: แสดงผลและวาดกราฟ
-# ==========================================
+# Calculate and report trend
 slope = model.coef_[0]
 trend_per_year = slope * 365
 
@@ -74,16 +68,16 @@ print("-" * 40)
 # Plotting
 plt.figure(figsize=(14, 7))
 
-# 1. ข้อมูลจริง (History 2023-2025)
-plt.scatter(df_history['Date'], df_history['SST_Celsius'], color='gray', alpha=0.4, s=5, label='Historical Data (2023-2025)')
+# Data Points 2023-2025
+plt.scatter(df_history['Date'], df_history['SST_Celsius'], color='gray', alpha=0.4, s=5, label='Historical Data (2023-2025)') # Scatter plot for historical data
 
-# 2. เส้นแนวโน้มยาว (Trend Line 2023-2027)
-plt.plot(all_dates, all_preds, color='red', linewidth=2.5, linestyle='--', label='Trend Forecast (Extended)')
+# Data Points 2026-2027
+plt.plot(all_dates, all_preds, color='red', linewidth=2.5, linestyle='--', label='Trend Forecast (Extended)') # Line plot for trend
 
-# 3. โซนพยากรณ์ (Forecast Zone Highlight)
-plt.axvspan(pd.to_datetime('2026-01-01'), pd.to_datetime('2027-12-31'), color='blue', alpha=0.05, label='Forecast Period (2026-2027)')
+# Highlight Forecast Period
+plt.axvspan(pd.to_datetime('2026-01-01'), pd.to_datetime('2027-12-31'), color='blue', alpha=0.05, label='Forecast Period (2026-2027)') # Highlight area
 
-# ตกแต่งกราฟ
+# Decorations
 plt.title(f'SST Forecast 5-Year Horizon (2023-2027)\nBased on Linear Trend: {trend_per_year:.4f} C/Year', fontsize=14)
 plt.ylabel('SST (Celsius)')
 plt.xlabel('Date')

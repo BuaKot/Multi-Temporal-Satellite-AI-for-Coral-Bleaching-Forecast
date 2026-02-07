@@ -1,14 +1,12 @@
 import pandas as pd
 import numpy as np
 import matplotlib
-matplotlib.use('Agg') # ป้องกัน Error เรื่องหน้าจอ
+matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
 
 print("[INFO] Starting Fresh Generation (2023-2024)...")
 
-# ==========================================
-# 1. ฟังก์ชันสร้างข้อมูลจำลอง (Mock Data Generator)
-# ==========================================
+# Mock Data Generation Function
 def generate_mock_year(year, start_temp_anomaly=0.0):
     # สร้างวันที่ 1 ม.ค. - 31 ธ.ค.
     dates = pd.date_range(start=f'{year}-01-01', end=f'{year}-12-31')
@@ -37,9 +35,7 @@ def generate_mock_year(year, start_temp_anomaly=0.0):
     
     return pd.DataFrame({'Date': dates, 'SST_Celsius': sst_final})
 
-# ==========================================
-# 2. สร้างข้อมูล 2 ปีและรวมกัน
-# ==========================================
+# Generate Data for 2023 and 2024
 print("[INFO] Generating 2023 data...")
 df_2023 = generate_mock_year(2023)
 
@@ -51,9 +47,7 @@ df_combined = pd.concat([df_2023, df_2024], ignore_index=True)
 df_combined['Date'] = pd.to_datetime(df_combined['Date'])
 df_combined = df_combined.sort_values('Date')
 
-# ==========================================
-# 3. คำนวณ DHW แบบต่อเนื่อง (Continuous DHW)
-# ==========================================
+# Calculate DHW
 print("[INFO] Calculating DHW...")
 MMM = 29.5
 dhw_list = []
@@ -64,7 +58,7 @@ for temp in df_combined['SST_Celsius']:
     if diff > 1.0:
         current_dhw += (diff / 7) # สะสมความร้อน
     else:
-        current_dhw = max(0, current_dhw - 0.5) # คลายความร้อน (Recovery)
+        current_dhw = max(0, current_dhw - 0.5) # คลายความร้อน
     dhw_list.append(current_dhw)
 
 df_combined['DHW'] = dhw_list
@@ -74,9 +68,7 @@ output_csv = 'sst_dhw_FINAL_2023_2024.csv'
 df_combined.to_csv(output_csv, index=False)
 print(f"[OK] Data saved to {output_csv}")
 
-# ==========================================
-# 4. พล็อตกราฟ (Plotting)
-# ==========================================
+# Plotting
 print("[INFO] Plotting final graph...")
 fig, ax1 = plt.subplots(figsize=(12, 6))
 
@@ -87,11 +79,11 @@ ax1.set_ylabel('SST (Celsius)', color=color_sst)
 ax1.tick_params(axis='y', labelcolor=color_sst)
 ax1.set_ylim(27, 32) # ล็อคแกน Y ให้อ่านง่าย
 
-# เส้นเกณฑ์ (Thresholds)
+# Threshold Lines
 ax1.axhline(y=MMM, color='green', linestyle='--', alpha=0.6, label='MMM (29.5 C)')
 ax1.axhline(y=MMM+1, color='orange', linestyle='--', alpha=0.6, label='Bleaching Threshold')
 
-# Plot DHW (พื้นที่สีเทา)
+# Plot DHW สีเทา
 ax2 = ax1.twinx()
 color_dhw = '#404040'
 ax2.fill_between(df_combined['Date'], df_combined['DHW'], color='gray', alpha=0.3, label='DHW')
@@ -99,7 +91,7 @@ ax2.plot(df_combined['Date'], df_combined['DHW'], color=color_dhw, linewidth=0.5
 ax2.set_ylabel('DHW (Degree Heating Weeks)', color=color_dhw)
 ax2.set_ylim(0, 16) # ล็อคแกน DHW ไม่ให้สูงเกินไป
 
-# ระบายสีโซนอันตราย
+# Alert Level Shading
 ax2.axhspan(4, 8, color='yellow', alpha=0.15) # Alert Level 1
 ax2.axhspan(8, 16, color='red', alpha=0.15)   # Alert Level 2
 
