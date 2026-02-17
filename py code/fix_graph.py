@@ -101,3 +101,5 @@ plt.tight_layout()
 filename_plot = 'corrected_bleaching_risk.png'
 plt.savefig(filename_plot, dpi=150)
 print(f"[SUCCESS] Graph saved as '{filename_plot}'. No flat lines!")
+
+#end
