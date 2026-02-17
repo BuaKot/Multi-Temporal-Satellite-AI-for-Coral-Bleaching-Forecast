@@ -10,7 +10,7 @@ print("[INFO] Starting Data Cleaning Pipeline (Fixed)...")
 # STEP 1: โหลด/สร้างข้อมูลดิบ (Raw Data)
 # ==========================================
 def generate_raw_data():
-    dates = pd.date_range(start='2023-01-01', end='2025-12-31')
+    dates = pd.date_range(start='2024-01-01', end='2024-12-31')
     
     # [FIXED] แปลงเป็น numpy array ทันทีเพื่อให้แก้ไขค่าได้
     day_of_year = dates.dayofyear.to_numpy() 
