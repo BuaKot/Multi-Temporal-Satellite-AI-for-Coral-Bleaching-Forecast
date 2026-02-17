@@ -46,7 +46,7 @@ model.fit(X_train, y_train)
 print("[INFO] Forecasting for 2026-2027...")
 future_dates = pd.date_range(start='2026-01-01', end='2027-12-31')
 future_dates_ordinal = future_dates.map(dt.datetime.toordinal).values.reshape(-1, 1)
-
+####
 # Model Prediction
 future_pred = model.predict(future_dates_ordinal)
 
