@@ -12,7 +12,7 @@ forecast = df[df['Status'] == 'Forecast']
 
 # ตั้งค่ากราฟ
 plt.figure(figsize=(12, 6), dpi=100)
-
+#
 # 1. วาดข้อมูลจริง (Actual Data)
 plt.scatter(history['Date'], history['SST_Celsius'], 
             color='#1f77b4', alpha=0.3, s=10, label='Actual SST (History)')
