@@ -14,8 +14,8 @@ target_lon = 101.683611
 poi = ee.Geometry.Point(target_lon, target_lat)
 
 # Date Range: Year 2023
-start_date = '2023-01-01'
-end_date = '2023-12-31'
+start_date = '2024-01-01'
+end_date = '2024-12-31'
 
 print(f"Fetching SST & Anomaly for: {target_lat}, {target_lon}")
 print("Dataset: NOAA OISST V2.1")
