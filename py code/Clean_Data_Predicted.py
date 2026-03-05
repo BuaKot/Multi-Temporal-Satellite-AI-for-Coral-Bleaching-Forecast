@@ -1,43 +1,52 @@
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+import numpy as np
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
 
-# โหลดข้อมูล
-df = pd.read_csv("C:\\Users\\buako\\OneDrive\\เดสก์ท็อป\\Multi-Temporal-Satellite-AI-for-Coral-Bleaching-Forecast\\CSV Files\\sst_trend_output_MILD.csv")
-df['Date'] = pd.to_datetime(df['Date'])
+df = pd.read_csv('CSV Files/master_data_3years_SST_DHW_RGBNIR.csv')
+df['date'] = pd.to_datetime(df['date'])
 
-# แยกข้อมูล History และ Forecast
-history = df[df['Status'] == 'History']
-forecast = df[df['Status'] == 'Forecast']
+print(f"Original: {len(df)} rows")
 
-# ตั้งค่ากราฟ
-plt.figure(figsize=(12, 6), dpi=100)
-#
-# 1. วาดข้อมูลจริง (Actual Data)
-plt.scatter(history['Date'], history['SST_Celsius'], 
-            color='#1f77b4', alpha=0.3, s=10, label='Actual SST (History)')
+# ─── 1. ลบ Outliers (reflectance > 0.3 = เมฆ/sun glint) ───
+has_bands = df['blue'].notna()
+df = df[~(has_bands & (df['blue'] > 0.3))]
+print(f"After outlier removal: {len(df)} rows")
 
-# 2. วาดเส้น Trend ช่วงอดีต (Trend Line)
-plt.plot(history['Date'], history['Linear_Trend'], 
-         color='red', linewidth=2, label='Linear Trend')
+# ─── 2. SST: ทุกวันมี 2 แถว (2 SST sources) → เก็บ max DHW, mean SST ───
+agg_sst = df.groupby('date').agg(
+    sst_celsius=('sst_celsius', 'mean'),
+    dhw=('dhw', 'max')
+).reset_index()
 
-# 3. วาดเส้นพยากรณ์ (Forecast Line)
-plt.plot(forecast['Date'], forecast['Linear_Trend'], 
-         color='orange', linestyle='--', linewidth=2.5, label='Forecast (Next 90 Days)')
+# ─── 3. Sentinel: เก็บแถวที่ cloud น้อยที่สุด (ต่อวัน) ───
+s2_rows = df[df['blue'].notna()].copy()
+s2_clean = (s2_rows
+    .sort_values('blue')  # proxy: ค่า blue ต่ำ = น้ำใส = cloud น้อย
+    .drop_duplicates(subset='date', keep='first')
+    [['date', 'blue', 'green', 'red', 'nir']])
 
-# ตกแต่งกราฟ
-plt.title('SST Trend Analysis & Forecast (Linear Regression)', fontsize=14)
-plt.ylabel('Sea Surface Temperature (°C)', fontsize=12)
-plt.xlabel('Date', fontsize=12)
-plt.grid(True, linestyle='--', alpha=0.5)
-plt.legend()
+# ─── 4. Merge กลับ ───
+df_clean = pd.merge(agg_sst, s2_clean, on='date', how='left')
+df_clean = df_clean.sort_values('date').reset_index(drop=True)
 
-# จัด Format วันที่แกน X
-plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=3))
-plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-plt.gcf().autofmt_xdate()
+# ─── 5. คำนวณ Indices ───
+df_clean['ndvi'] = ((df_clean['nir'] - df_clean['red']) /
+                    (df_clean['nir'] + df_clean['red'])).round(4)
 
-# แสดงผล
-plt.tight_layout()
-plt.savefig('sst_trend_graph_from_csv.png')
-plt.show()
+df_clean['ndwi'] = ((df_clean['green'] - df_clean['nir']) /
+                    (df_clean['green'] + df_clean['nir'])).round(4)
+
+# ─── 6. สรุปผล ───
+total = len(df_clean)
+has_s2 = df_clean['blue'].notna().sum()
+print(f"\nAfter cleaning: {total} days total")
+print(f"Days with Sentinel-2: {has_s2} ({has_s2/total*100:.1f}%)")
+print(f"Days without Sentinel-2 (NaN): {total - has_s2}")
+print(f"\nSST range: {df_clean['sst_celsius'].min():.1f} – {df_clean['sst_celsius'].max():.1f} °C")
+print(f"DHW range: {df_clean['dhw'].min():.1f} – {df_clean['dhw'].max():.1f}")
+print(f"\nSample:")
+print(df_clean[df_clean['blue'].notna()].head(5).to_string())
+
+df_clean.to_csv('CSV Files/master_clean.csv', index=False)
+print(f"\nSaved to CSV Files/master_clean.csv")
