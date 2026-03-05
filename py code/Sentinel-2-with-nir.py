@@ -1,91 +1,119 @@
 import ee
 import pandas as pd
+import numpy as np
 import os
 
-# 1. Initialize Google Earth Engine
 try:
     ee.Initialize(project='macbf-project2')
-except Exception as e:
+except:
     ee.Authenticate()
     ee.Initialize(project='macbf-project2')
 
-# 2. Define Point of Interest (Koh Man Nai) - [Long, Lat]
-poi = ee.Geometry.Point([101.65, 12.60]) 
+poi = ee.Geometry.Point([101.65, 12.60])
 
-# 3. Function to extract Mean Reflectance
-def get_s2_data(image):
+# ─────────────────────────────────────────
+# 1. FETCH SST + ANOM (OISST)
+# ─────────────────────────────────────────
+print("Fetching SST data...")
+
+def get_oisst(image):
+    stats = image.reduceRegion(
+        reducer=ee.Reducer.mean(),
+        geometry=poi,
+        scale=27830
+    )
+    return ee.Feature(None, {
+        'date': image.date().format('yyyy-MM-dd'),
+        'sst':  stats.get('sst'),
+        'anom': stats.get('anom'),
+    })
+
+oisst_col = ee.ImageCollection('NOAA/CDR/OISST/V2_1') \
+              .filterDate('2022-01-01', '2023-01-01')
+
+df_sst = pd.DataFrame([
+    f['properties']
+    for f in oisst_col.map(get_oisst).getInfo()['features']
+])
+df_sst['date'] = pd.to_datetime(df_sst['date'])
+df_sst = df_sst.sort_values('date').drop_duplicates('date').reset_index(drop=True)
+
+# Fix: anom เป็น °C × 100 → หาร 100
+df_sst['sst']  = df_sst['sst']  / 100.0
+df_sst['anom'] = df_sst['anom'] / 100.0
+
+# คำนวณ DHW ที่ถูกต้อง
+df_sst['hotspot'] = (df_sst['anom'] - 1.0).clip(lower=0)
+df_sst['dhw']     = df_sst['hotspot'].rolling(window=84, min_periods=1).sum() / 7.0
+df_sst = df_sst.drop(columns='hotspot')
+
+print(f"SST: {len(df_sst)} days | "
+      f"SST {df_sst['sst'].min():.1f}-{df_sst['sst'].max():.1f}C | "
+      f"DHW {df_sst['dhw'].min():.2f}-{df_sst['dhw'].max():.2f}")
+
+# ─────────────────────────────────────────
+# 2. FETCH SENTINEL-2
+# ─────────────────────────────────────────
+print("Fetching Sentinel-2 data...")
+
+def get_s2(image):
     stats = image.reduceRegion(
         reducer=ee.Reducer.mean(),
         geometry=poi,
         scale=10
     )
     return ee.Feature(None, {
-        'date': image.date().format('yyyy-MM-dd'),
-        'blue': stats.get('B2'),
+        'date':  image.date().format('yyyy-MM-dd'),
+        'blue':  stats.get('B2'),
         'green': stats.get('B3'),
-        'red': stats.get('B4'),
-        'nir': stats.get('B8'),
+        'red':   stats.get('B4'),
+        'nir':   stats.get('B8'),
         'cloud': image.get('CLOUDY_PIXEL_PERCENTAGE')
     })
 
-# 4. Fetch 3 years of data (2023 - 2025)
-print("Fetching data from Google Earth Engine (2023-2025)...")
 s2_col = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
           .filterBounds(poi)
-          .filterDate('2022-01-01', '2022-12-31')
+          .filterDate('2022-01-01', '2023-01-01')
           .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
 
-nested_list = s2_col.map(get_s2_data).getInfo()
+df_s2 = pd.DataFrame([
+    f['properties']
+    for f in s2_col.map(get_s2).getInfo()['features']
+])
+df_s2['date'] = pd.to_datetime(df_s2['date'])
 
-# 5. Process Sentinel-2 DataFrame
-data_list = [feature['properties'] for feature in nested_list['features']]
-df_s2 = pd.DataFrame(data_list)
+# Scale + clean
+for col in ['blue', 'green', 'red', 'nir']:
+    df_s2[col] = df_s2[col] / 10000.0
 
-# Scale values to 0-1 range
-cols_to_scale = ['blue', 'green', 'red', 'nir']
-df_s2[cols_to_scale] = df_s2[cols_to_scale] / 10000.0
+# ลบ outlier (เมฆ/glint)
+df_s2 = df_s2[df_s2['blue'] < 0.3]
 
-# 6. Save Raw Sentinel-2 Data
+# Dedup: เก็บแถว cloud น้อยสุดต่อวัน
+df_s2 = (df_s2.sort_values('cloud')
+              .drop_duplicates('date', keep='first')
+              .reset_index(drop=True))
+
+print(f"S2: {len(df_s2)} days with valid imagery")
+
+# ─────────────────────────────────────────
+# 3. MERGE
+# ─────────────────────────────────────────
+df_final = pd.merge(
+    df_sst,
+    df_s2[['date', 'blue', 'green', 'red', 'nir']],
+    on='date',
+    how='left'
+)
+
+# ─────────────────────────────────────────
+# 4. SAVE
+# ─────────────────────────────────────────
 if not os.path.exists('CSV Files'):
     os.makedirs('CSV Files')
 
-s2_output_path = 'CSV Files/sentinel2_data_with_nir.csv'
-df_s2.to_csv(s2_output_path, index=False)
-print(f"Sentinel-2 data saved to: {s2_output_path}")
+df_final.to_csv('CSV Files/master_data_2022.csv', index=False)
 
-# --- Data Merging Section ---
-
-print("Starting Data Integration (Merging)...")
-try:
-    # Load Ocean data (SST + DHW)
-    ocean_path = 'CSV Files/sst_dhw_2022.csv'
-    df_ocean = pd.read_csv(ocean_path)
-    
-    # Standardize Column Names (Removes spaces and converts to lowercase)
-    df_ocean.columns = df_ocean.columns.str.strip().str.lower()
-    df_s2.columns = df_s2.columns.str.strip().str.lower()
-
-    # Ensure 'date' column exists after cleaning
-    if 'date' in df_ocean.columns:
-        # Standardize Date Format to YYYY-MM-DD for perfect matching
-        df_ocean['date'] = pd.to_datetime(df_ocean['date']).dt.strftime('%Y-%m-%d')
-        df_s2['date'] = pd.to_datetime(df_s2['date']).dt.strftime('%Y-%m-%d')
-
-        # Perform Left Join (Keep all days from Ocean data)
-        cols_to_merge = ['date', 'blue', 'green', 'red', 'nir']
-        df_final = pd.merge(df_ocean, df_s2[cols_to_merge], on='date', how='left')
-
-        # Save Final Master Table
-        master_path = 'CSV Files/master_data_2022_SST_DHW_RGBNIR.csv'
-        df_final.to_csv(master_path, index=False)
-        
-        print(f"Success! Master table created: {master_path}")
-        print("-" * 50)
-        print(df_final.head())
-    else:
-        print(f"Error: 'date' column not found. Available columns: {df_ocean.columns.tolist()}")
-
-except FileNotFoundError:
-    print(f"Error: Could not find {ocean_path}. Please check the filename.")
-except Exception as e:
-    print(f"An unexpected error occurred: {e}")
+print(f"\nSaved: {len(df_final)} rows")
+print(f"Days with S2: {df_final['blue'].notna().sum()}")
+print(df_final[['date','sst','anom','dhw','blue','green']].head(10).to_string())
