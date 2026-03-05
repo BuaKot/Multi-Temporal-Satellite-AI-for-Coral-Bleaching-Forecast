@@ -10,8 +10,8 @@ except:
     ee.Initialize(project='macbf-project2')
 
 poi = ee.Geometry.Point([101.65, 12.60])
-start_date = '2022-01-01'
-end_date = '2023-01-01'
+start_date = '2026-01-01'
+end_date = '2026-02-01'
 
 print("Fetching 2022 SST data from NOAA OISST...")
 
