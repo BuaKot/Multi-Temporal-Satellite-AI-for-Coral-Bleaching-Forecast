@@ -1,16 +1,16 @@
-# 🪸 Multi-Temporal Satellite AI for Coral Bleaching Forecast
+# Multi-Temporal Satellite AI for Coral Bleaching Forecast
 
 > **An AI-powered environmental intelligence platform** for monitoring, analyzing, and forecasting coral bleaching risks using multi-temporal satellite data and machine learning algorithms.
 
 ---
 
-## 📌 Executive Summary
+## Executive Summary
 
 Coral bleaching is primarily triggered by prolonged thermal stress resulting from elevated **Sea Surface Temperature (SST)**. This project leverages multi-temporal satellite remote sensing data combined with Artificial Intelligence to provide predictive insights, enabling marine conservationists and decision-makers to anticipate and mitigate ecological risks before severe degradation occurs.
 
 ---
 
-## 🧠 Core Methodology & Working Principles
+##Core Methodology & Working Principles
 1. **Multi-Temporal Data Acquisition**: Extracts continuous temporal sequences of Sea Surface Temperature (SST) and oceanographic indicators from satellite sensors.
 2. **Data Pipeline & Preprocessing**:
    * Cleans missing spatial/temporal entries.
@@ -21,7 +21,7 @@ Coral bleaching is primarily triggered by prolonged thermal stress resulting fro
 
 ---
 
-## 📂 Repository Structure
+## Repository Structure
 
 ```text
 ├── 📁 CSV Files/                # Raw and processed tabular datasets
